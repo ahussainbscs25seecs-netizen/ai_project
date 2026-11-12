@@ -1,0 +1,11 @@
+# local price cache, never commit this
+backend/data/
+data/cache/
+# python junk
+__pycache__/
+*.pyc
+# virtual environments
+venv/
+.venv/
+# generated result tables
+reports/*.csv
