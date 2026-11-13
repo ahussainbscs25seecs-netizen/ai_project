@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PSX Stock Advisor - Professional Trading Platform</title>
+
+    <!-- Fonts: Newsreader (editorial serif) · Archivo (UI grotesque) · JetBrains Mono (data) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Chart.js for beautiful charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.0/dist/chartjs-chart-financial.min.js"></script>
+
+    <!-- Axios for API calls -->
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
+                <span class="brand-text">PSX Stock Advisor</span>
+                <span class="beta-badge">AI-Powered</span>
+            </div>
+
+            <div class="nav-links">
+                <a href="#" class="nav-link active" data-page="dashboard">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7" rx="1" />
+                        <rect x="14" y="3" width="7" height="7" rx="1" />
+                        <rect x="14" y="14" width="7" height="7" rx="1" />
+                        <rect x="3" y="14" width="7" height="7" rx="1" />
+                    </svg>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-link" data-page="analysis">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 3v18h18" />
+                        <path d="M7 14l3-4 3 3 5-7" />
+                    </svg>
+                    <span>Stock Analysis</span>
+                </a>
+                <a href="#" class="nav-link" data-page="portfolio">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="7" width="18" height="13" rx="2" />
+                        <path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" />
+                    </svg>
+                    <span>Portfolio Builder</span>
+                </a>
+                <a href="#" class="nav-link" data-page="scanner">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="M21 21l-4.35-4.35" />
+                    </svg>
+                    <span>Market Scanner</span>
+                </a>
+            </div>
+
+            <div class="nav-actions">
+                <button class="refresh-btn" id="refreshBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Page -->
+        <div id="dashboard-page" class="page active">
+            <div class="page-header">
+                <h1>Trading Dashboard</h1>
+                <p>Real-time insights and market overview</p>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card stat-card-primary">
+                    <div class="stat-icon stat-icon-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 21h18" />
+                            <rect x="5" y="12" width="3" height="6" rx="0.5" />
+                            <rect x="10.5" y="7" width="3" height="11" rx="0.5" />
+                            <rect x="16" y="10" width="3" height="8" rx="0.5" />
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Total Stocks</span>
+                        <span class="stat-value" id="totalStocks">40</span>
+                    </div>
+                </div>
+
+                <div class="stat-card stat-card-success">
+                    <div class="stat-icon stat-icon-success">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 17l6-6 4 4 8-8" />
+                            <path d="M17 7h4v4" />
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Buy Signals</span>
+                        <span class="stat-value stat-value-success" id="buySignals">--</span>
+                    </div>
+                </div>
+
+                <div class="stat-card stat-card-danger">
+                    <div class="stat-icon stat-icon-danger">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 7l6 6 4-4 8 8" />
+                            <path d="M17 17h4v-4" />
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Sell Signals</span>
+                        <span class="stat-value stat-value-danger" id="sellSignals">--</span>
+                    </div>
+                </div>
+
+                <div class="stat-card stat-card-neutral">
+                    <div class="stat-icon stat-icon-neutral">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5 12h14" />
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Hold Signals</span>
+                        <span class="stat-value" id="holdSignals">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-content">
+                <div class="quick-actions-panel">
+                    <h2>Quick Actions</h2>
+                    <div class="action-buttons">
+                        <button class="action-btn action-btn-primary" onclick="switchPage('analysis')">
+                            <span class="action-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 3v18h18" />
+                                    <path d="M7 14l3-4 3 3 5-7" />
+                                </svg>
+                            </span>
+                            <span class="action-text">
+                                <strong>Analyze Stock</strong>
+                                <small>Get AI-powered insights</small>
+                            </span>
+                            <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M13 6l6 6-6 6" />
+                            </svg>
+                        </button>
+
+                        <button class="action-btn action-btn-success" onclick="switchPage('portfolio')">
+                            <span class="action-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="7" width="18" height="13" rx="2" />
+                                    <path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" />
+                                </svg>
+                            </span>
+                            <span class="action-text">
+                                <strong>Build Portfolio</strong>
+                                <small>AI stock selection</small>
+                            </span>
+                            <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M13 6l6 6-6 6" />
+                            </svg>
+                        </button>
+
+                        <button class="action-btn action-btn-info" onclick="switchPage('scanner')">
+                            <span class="action-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="7" />
+                                    <path d="M21 21l-4.35-4.35" />
+                                </svg>
+                            </span>
+                            <span class="action-text">
+                                <strong>Scan Market</strong>
+                                <small>Find opportunities</small>
+                            </span>
+                            <svg class="action-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M13 6l6 6-6 6" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="market-overview-panel">
+                    <h2>Market Overview</h2>
+                    <div id="marketOverviewLoading" class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Loading market data...</p>
+                    </div>
+                    <div id="marketOverviewContent" style="display: none;">
+                        <div id="topMoversContainer"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stock Analysis Page -->
+        <div id="analysis-page" class="page">
+            <div class="page-header">
+                <h1>Stock Analysis</h1>
+                <p>Comprehensive technical analysis with AI signals</p>
+            </div>
+
+            <div class="analysis-controls">
+                <div class="stock-selector">
+                    <label>Select Stock</label>
+                    <select id="stockSelect" class="stock-select">
+                        <option value="">Choose a stock...</option>
+                    </select>
+                </div>
+
+                <div class="period-selector">
+                    <label>Time Period</label>
+                    <select id="periodSelect" class="period-select">
+                        <option value="1mo">1 Month</option>
+                        <option value="3mo" selected>3 Months</option>
+                        <option value="6mo">6 Months</option>
+                        <option value="1y">1 Year</option>
+                    </select>
+                </div>
+
+                <button class="analyze-btn" id="analyzeBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="11" cy="11" r="8" stroke-width="2" />
+                        <path d="M21 21l-4.35-4.35" stroke-width="2" stroke-linecap="round" />
+                    </svg>
+                    Analyze
+                </button>
+            </div>
+
+            <div id="analysisLoading" class="loading-state" style="display: none;">
+                <div class="spinner"></div>
+                <p>Analyzing stock data...</p>
+            </div>
+
+            <div id="analysisContent" style="display: none;">
+                <!-- Trading Signal -->
+                <div id="tradingSignal" class="trading-signal"></div>
+
+                <!-- Key Metrics -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <span class="metric-label">Current Price</span>
+                        <span class="metric-value" id="metricPrice">--</span>
+                        <span class="metric-change" id="metricChange">--</span>
+                    </div>
+
+                    <div class="metric-card">
+                        <span class="metric-label">Confidence</span>
+                        <span class="metric-value" id="metricConfidence">--</span>
+                    </div>
+
+                    <div class="metric-card">
+                        <span class="metric-label">RSI</span>
+                        <span class="metric-value" id="metricRSI">--</span>
+                    </div>
+
+                    <div class="metric-card">
+                        <span class="metric-label">Volume</span>
+                        <span class="metric-value" id="metricVolume">--</span>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="charts-container">
+                    <div class="chart-panel">
+                        <h3>Price & Volume</h3>
+                        <canvas id="priceChart"></canvas>
+                    </div>
+
+                    <div class="chart-row">
+                        <div class="chart-panel chart-panel-half">
+                            <h3>RSI Indicator</h3>
+                            <canvas id="rsiChart"></canvas>
+                        </div>
+
+                        <div class="chart-panel chart-panel-half">
+                            <h3>MACD</h3>
+                            <canvas id="macdChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technical Signals -->
+                <div class="signals-panel">
+                    <h3>Technical Signals</h3>
+                    <div id="signalsList" class="signals-list"></div>
+                </div>
+
+                <!-- Stock News -->
+                <div class="signals-panel" style="margin-top: 2rem;">
+                    <h3>Latest News for <span id="newsStockTicker"></span></h3>
+                    <div id="newsContainer" class="news-container">
+                        <p style="color: var(--text-secondary);">Select a stock and analyze to see latest news</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Portfolio Builder Page -->
+        <div id="portfolio-page" class="page">
+            <div class="page-header">
+                <h1>AI-Powered Portfolio Builder</h1>
+                <p>Let AI select the best stocks with strong buy signals for you</p>
+            </div>
+
+            <div class="portfolio-builder-card">
+                <div class="builder-inputs">
+                    <div class="input-group">
+                        <label>Investment Budget (PKR)</label>
+                        <input type="number" id="budgetInput" class="budget-input" placeholder="100,000" min="1000"
+                            step="1000" value="100000">
+                        <small>Minimum: PKR 1,000</small>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Risk Tolerance</label>
+                        <div class="risk-selector">
+                            <button class="risk-btn" data-risk="conservative">
+                                <span class="risk-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" />
+                                        <path d="M9 12l2 2 4-4" />
+                                    </svg>
+                                </span>
+                                <strong>Conservative</strong>
+                                <small>Low risk, 5-7 stocks</small>
+                            </button>
+                            <button class="risk-btn active" data-risk="moderate">
+                                <span class="risk-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 3v18" />
+                                        <path d="M5 7h14" />
+                                        <path d="M5 7l-2.5 5a3 3 0 006 0L6 7" />
+                                        <path d="M19 7l-2.5 5a3 3 0 006 0L20 7" />
+                                        <path d="M8 21h8" />
+                                    </svg>
+                                </span>
+                                <strong>Moderate</strong>
+                                <small>Medium risk, 4-5 stocks</small>
+                            </button>
+                            <button class="risk-btn" data-risk="aggressive">
+                                <span class="risk-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.9.7-2.1-.1-2.9a2 2 0 00-2.9-.1z" />
+                                        <path d="M12 15l-3-3a11 11 0 015-8c2.4-1.5 5-1.5 5-1.5s0 2.6-1.5 5a11 11 0 01-8 5z" />
+                                        <path d="M9 12H4s.5-2.8 2-4a3 3 0 013 0" />
+                                        <path d="M12 15v5s2.8-.5 4-2a3 3 0 000-3" />
+                                    </svg>
+                                </span>
+                                <strong>Aggressive</strong>
+                                <small>High risk, 3-4 stocks</small>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="generate-portfolio-btn" id="generatePortfolioBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    Generate Smart Portfolio
+                </button>
+            </div>
+
+            <div id="portfolioLoading" class="loading-state" style="display: none;">
+                <div class="spinner"></div>
+                <p>AI is analyzing stocks and building your portfolio...</p>
+                <small>This may take a minute</small>
+            </div>
+
+            <div id="portfolioResult" style="display: none;">
+                <!-- Portfolio Summary -->
+                <div class="portfolio-summary">
+                    <h2>Your Portfolio Summary</h2>
+                    <div class="summary-grid">
+                        <div class="summary-card">
+                            <span class="summary-label">Total Budget</span>
+                            <span class="summary-value" id="summaryBudget">--</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="summary-label">Total Invested</span>
+                            <span class="summary-value" id="summaryInvested">--</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="summary-label">Cash Remaining</span>
+                            <span class="summary-value" id="summaryRemaining">--</span>
+                        </div>
+                        <div class="summary-card">
+                            <span class="summary-label">Number of Stocks</span>
+                            <span class="summary-value" id="summaryStocks">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stock Allocations -->
+                <div class="portfolio-stocks">
+                    <h2>Stock Allocation</h2>
+                    <div id="stockAllocations" class="stock-allocations"></div>
+                </div>
+
+                <div class="portfolio-disclaimer">
+                    <svg class="disclaimer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 8h.01M11 12h1v4h1" />
+                    </svg>
+                    <span><strong>Disclaimer:</strong> This is an AI-generated recommendation based on technical
+                        analysis. Always do your own research and consult with financial advisors before
+                        investing.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Market Scanner Page -->
+        <div id="scanner-page" class="page">
+            <div class="page-header">
+                <h1>Market Scanner</h1>
+                <p>Real-time market scan for trading opportunities</p>
+            </div>
+
+            <div class="scanner-controls">
+                <div class="scan-filters">
+                    <button class="filter-btn active" data-filter="all">All Stocks</button>
+                    <button class="filter-btn" data-filter="buy">
+                        <svg class="filter-dot filter-dot-buy" viewBox="0 0 8 8" aria-hidden="true">
+                            <circle cx="4" cy="4" r="4" fill="currentColor" />
+                        </svg>
+                        Buy Signals
+                    </button>
+                    <button class="filter-btn" data-filter="sell">
+                        <svg class="filter-dot filter-dot-sell" viewBox="0 0 8 8" aria-hidden="true">
+                            <circle cx="4" cy="4" r="4" fill="currentColor" />
+                        </svg>
+                        Sell Signals
+                    </button>
+                </div>
+
+                <button class="scan-btn" id="scanBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="11" cy="11" r="8" stroke-width="2" />
+                        <path d="M21 21l-4.35-4.35" stroke-width="2" stroke-linecap="round" />
+                    </svg>
+                    Start Scan
+                </button>
+            </div>
+
+            <div id="scanProgress" class="scan-progress" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p id="progressText">Scanning market...</p>
+            </div>
+
+            <div id="scanResults" style="display: none;">
+                <div class="results-header">
+                    <h3>Results: <span id="resultsCount">0</span> stocks</h3>
+                </div>
+
+                <div class="scanner-categories">
+                    <div class="scanner-column col-buy">
+                        <div class="column-header header-buy">
+                            <h3><svg class="column-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 17l6-6 4 4 8-8" />
+                                    <path d="M17 7h4v4" />
+                                </svg>Strong Buy</h3>
+                            <span class="count-badge" id="buyCount">0</span>
+                        </div>
+                        <div class="stock-list" id="buyList"></div>
+                    </div>
+
+                    <div class="scanner-column col-sell">
+                        <div class="column-header header-sell">
+                            <h3><svg class="column-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 7l6 6 4-4 8 8" />
+                                    <path d="M17 17h4v-4" />
+                                </svg>Strong Sell</h3>
+                            <span class="count-badge" id="sellCount">0</span>
+                        </div>
+                        <div class="stock-list" id="sellList"></div>
+                    </div>
+
+                    <div class="scanner-column col-hold">
+                        <div class="column-header header-hold">
+                            <h3><svg class="column-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M5 12h14" />
+                                </svg>Hold / Neutral</h3>
+                            <span class="count-badge" id="holdCount">0</span>
+                        </div>
+                        <div class="stock-list" id="holdList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Notifications -->
+    <div id="toast" class="toast"></div>
+
+    <!-- App Script -->
+    <script src="app.js"></script>
+</body>
+
+</html>
