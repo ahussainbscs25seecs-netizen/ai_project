@@ -19,13 +19,16 @@ add_indicators(df)                  -> df + indicator columns (warm-up rows drop
 fit_bins(train_df)                  -> edges (plain dict, JSON-serialisable)
 make_hmm_obs(df, edges, n_symbols)  -> (obs int array, dates)   for hmm.py
 make_evidence(df, edges)            -> DataFrame of labels      for bayes.py
-make_labels(df, horizon, thresh)    -> Series of "Up"/"Down"    for bayes.py training
+make_forward_returns(df, horizon)   -> Series of 5-day returns  for bayes.py (mu, sigma)
+make_labels(df, edges, horizon)     -> Series of "Up"/"Down"    for bayes.py training
+train_index_with_embargo(...)       -> training dates minus last `horizon` days
 save_edges(edges, path) / load_edges(path)
 
 RULES THIS FILE ENFORCES
 ------------------------
-1. Bin edges are learned from TRAINING data only (fit_bins). Applying edges
-   to later data never changes them, so no test-period leakage.
+1. Bin edges (and the Up threshold) are learned from TRAINING data only
+   (fit_bins). Applying edges to later data never changes them, so no
+   test-period leakage.
 2. Every rolling/EWM window looks backward only. The indicator at day t
    uses days <= t.
 3. Warm-up rows (where an indicator is not yet defined) are DROPPED, never
@@ -35,6 +38,7 @@ RULES THIS FILE ENFORCES
 """
 
 import json
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -65,7 +69,12 @@ TREND_FLAT_BAND = 0.005
 
 # Label definition for the Bayes net target
 LABEL_HORIZON = 5                   # trading days ahead
-LABEL_UP_THRESHOLD = 0.01           # +1% over the horizon counts as "Up"
+LABEL_THRESH_MULT = 0.5             # "Up" = move > 0.5 * daily_std * sqrt(horizon)
+                                    # (tune 0.3-0.7 on validation)
+
+# A daily |return| above this is almost surely a data error
+# (PSX daily limit is about 7.5%)
+MAX_ABS_RET = 0.20
 
 RET5_NAMES = ["Big down", "Down", "Flat", "Up", "Big up"]
 RSI_NAMES = ["Low", "Mid", "High"]
@@ -102,6 +111,16 @@ def _validate(df: pd.DataFrame, min_rows: int) -> pd.DataFrame:
         )
     if (out["Close"] <= 0).any():
         raise InsufficientDataError("Non-positive Close prices found.")
+
+    # Unadjusted splits look like huge one-day moves and corrupt bins/regimes
+    daily = out["Close"].pct_change().abs()
+    if (daily > MAX_ABS_RET).any():
+        bad = daily[daily > MAX_ABS_RET].index[0].date()
+        warnings.warn(
+            f"Daily return above {MAX_ABS_RET:.0%} (first on {bad}). "
+            "Check that data_loader uses split/dividend-adjusted prices "
+            "(auto_adjust=True)."
+        )
     return out
 
 
@@ -130,8 +149,10 @@ def add_indicators(df: pd.DataFrame, min_rows: int = MIN_ROWS) -> pd.DataFrame:
     avg_loss = loss.ewm(alpha=1 / RSI_PERIOD, min_periods=RSI_PERIOD, adjust=False).mean()
     rs = avg_gain / avg_loss.replace(0.0, np.nan)
     rsi = 100.0 - 100.0 / (1.0 + rs)
-    # avg_loss == 0 with a defined avg_gain means RSI = 100
+    # no losses at all -> RSI = 100
     rsi = rsi.where(~((avg_loss == 0.0) & avg_gain.notna()), 100.0)
+    # no gains AND no losses (flat, illiquid stretch) -> neutral 50
+    rsi = rsi.where(~((avg_loss == 0.0) & (avg_gain == 0.0)), 50.0)
     out["rsi"] = rsi
 
     # MACD
@@ -173,7 +194,8 @@ def _ensure_indicators(df: pd.DataFrame) -> pd.DataFrame:
 # --------------------------------------------------------------------------
 def fit_bins(train_df: pd.DataFrame, min_rows: int = MIN_ROWS) -> dict:
     """
-    Learn per-stock cut points from the training window.
+    Learn per-stock cut points and the per-stock "Up" threshold from the
+    training window.
 
     Returns a plain dict of floats/lists, so it can be saved as JSON.
     Pass ONLY training rows here; never the full history including the test period.
@@ -195,10 +217,21 @@ def fit_bins(train_df: pd.DataFrame, min_rows: int = MIN_ROWS) -> dict:
         "volume_low": VOLUME_LOW,
         "volume_high": VOLUME_HIGH,
         "trend_flat_band": TREND_FLAT_BAND,
+        # per-stock "Up" threshold: half a typical 5-day swing, training data only
+        "label_thresh": float(LABEL_THRESH_MULT * np.std(ret) * np.sqrt(LABEL_HORIZON)),
         "n_train_rows": int(len(feats)),
         "train_start": str(feats.index[0].date()),
         "train_end": str(feats.index[-1].date()),
     }
+
+    # duplicate cut points -> one bin can never occur (common on illiquid stocks)
+    for key in ("ret5", "ret3", "vol3", "rsi3"):
+        cuts = edges[key]
+        if len(set(cuts)) < len(cuts):
+            warnings.warn(
+                f"fit_bins: duplicate edges in '{key}' {cuts}; a bin will be empty. "
+                "Make sure hmm.py smooths the emission matrix."
+            )
     return edges
 
 
@@ -287,29 +320,47 @@ def make_evidence(df: pd.DataFrame, edges: dict) -> pd.DataFrame:
 
 
 # --------------------------------------------------------------------------
-# Target labels for Bayes-net training
+# Targets for Bayes-net training
 # --------------------------------------------------------------------------
-def make_labels(
-    df: pd.DataFrame,
-    horizon: int = LABEL_HORIZON,
-    up_threshold: float = LABEL_UP_THRESHOLD,
-) -> pd.Series:
-    """
-    "Up" if the close `horizon` trading days ahead is more than `up_threshold`
-    above today's close, else "Down". The last `horizon` rows have no known
-    outcome and are dropped (never labelled), so there is no leakage.
-
-    NOTE for the caller: horizon-day labels overlap. In walk-forward testing,
-    leave a gap of `horizon` days between the last training row and the first
-    test row (embargo).
-    """
+def _forward_return(df: pd.DataFrame, horizon: int) -> pd.Series:
+    """horizon-day-ahead simple return; the last `horizon` rows (unknown) are dropped."""
     feats = _ensure_indicators(df)
     close = feats["Close"]
     fwd = close.shift(-horizon) / close - 1.0
-    fwd = fwd.iloc[:-horizon] if horizon > 0 else fwd
-    labels = pd.Series(np.where(fwd > up_threshold, "Up", "Down"), index=fwd.index)
-    labels.name = "Outcome"
+    return fwd.iloc[:-horizon] if horizon > 0 else fwd
+
+
+def make_forward_returns(df: pd.DataFrame, horizon: int = LABEL_HORIZON) -> pd.Series:
+    """Actual horizon-day return (e.g. 0.04 = +4%). bayes.py uses it for mu and sigma."""
+    fwd = _forward_return(df, horizon)
+    fwd.name = "fwd_ret"
+    return fwd
+
+
+def make_labels(df: pd.DataFrame, edges: dict, horizon: int = LABEL_HORIZON) -> pd.Series:
+    """
+    "Up" if the horizon-day return exceeds this stock's own threshold
+    (edges["label_thresh"], learned from training data), else "Down".
+    The last `horizon` rows have no known outcome and are dropped.
+
+    NOTE for the caller: horizon-day labels overlap, so leave a gap of `horizon`
+    days between the last training row and the first validation/test row
+    (see train_index_with_embargo).
+    """
+    fwd = _forward_return(df, horizon)
+    labels = pd.Series(
+        np.where(fwd > edges["label_thresh"], "Up", "Down"),
+        index=fwd.index,
+        name="Outcome",
+    )
     return labels
+
+
+def train_index_with_embargo(index: pd.DatetimeIndex, train_end, horizon: int = LABEL_HORIZON):
+    """Training dates up to train_end, minus the last `horizon` days, whose labels
+    look into the next period. Use this instead of slicing by hand."""
+    idx = index[index <= pd.Timestamp(train_end)]
+    return idx[:-horizon] if horizon > 0 else idx
 
 
 # --------------------------------------------------------------------------
@@ -346,14 +397,14 @@ def _synthetic_prices(n: int = 900, seed: int = 7) -> pd.DataFrame:
 if __name__ == "__main__":
     raw = _synthetic_prices()
     feats = add_indicators(raw)
-    split = int(len(feats) * 0.7)
     train = raw.iloc[: int(len(raw) * 0.7)]
 
     edges = fit_bins(train)
     obs5, d5 = make_hmm_obs(raw, edges, 5)
     obs9, _ = make_hmm_obs(raw, edges, 9)
     ev = make_evidence(raw, edges)
-    lab = make_labels(raw)
+    lab = make_labels(raw, edges)
+    fwd = make_forward_returns(raw)
 
     print(f"raw rows={len(raw)}  after warm-up drop={len(feats)}")
     print("obs5 counts:", np.bincount(obs5, minlength=5))
@@ -383,4 +434,17 @@ if __name__ == "__main__":
         raise SystemExit("short data was not rejected")
     except InsufficientDataError as e:
         print("short-data check OK:", e)
+    # 6. labels and forward returns cover the same dates
+    assert lab.index.equals(fwd.index)
+    # 7. labels agree with the threshold
+    assert ((fwd > edges["label_thresh"]).to_numpy() == (lab == "Up").to_numpy()).all()
+    # 8. threshold is positive and the Up rate is reasonable (not 0% or 100%)
+    assert edges["label_thresh"] > 0
+    up_rate = (lab == "Up").mean()
+    print(f"label_thresh={edges['label_thresh']:.4f}  Up rate={up_rate:.2%}")
+    assert 0.1 < up_rate < 0.6
+    # 9. embargo removes exactly `horizon` rows
+    tr_end = raw.index[int(len(raw) * 0.7) - 1]
+    emb = train_index_with_embargo(feats.index, tr_end)
+    assert len(emb) == (feats.index <= tr_end).sum() - LABEL_HORIZON
     print("ALL CHECKS PASSED")
